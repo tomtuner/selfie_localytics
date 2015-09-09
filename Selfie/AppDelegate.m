@@ -17,6 +17,8 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // Override point for customization after application launch.
+    
+    
     return YES;
 }
 
@@ -42,6 +44,75 @@
     // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     // Saves changes in the application's managed object context before the application terminates.
     [self saveContext];
+}
+
+- (void)processIntoCoreDataWithArray: (NSArray *) data {
+    
+    NSManagedObjectContext *moc = [self managedObjectContext];
+    
+    for (NSDictionary *record in data) {
+        [self createNewObjectWithDictionary:record];
+    }
+    
+    [self saveContext];
+}
+
+-(void) createNewObjectWithDictionary:(NSDictionary *) record {
+    NSManagedObject *newManagedObject = [NSEntityDescription insertNewObjectForEntityForName:@"Posts" inManagedObjectContext:[self managedObjectContext]];
+    
+    [record enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
+        if ([key isEqualToString:@"id"]) {
+            key = @"identifier";
+        }
+        [self setValue:obj forKey:key forManagedObject:newManagedObject];
+    }];
+}
+
+-(BOOL) removeAllCoreDataObjects {
+    __block BOOL end = NO;
+    NSManagedObjectContext *managedObjectContext = [self managedObjectContext ];
+    
+    [managedObjectContext performBlockAndWait:^{
+        NSArray *coreDataObjectArray = nil;
+        NSError *error = nil;
+        NSFetchRequest *request = [[NSFetchRequest alloc] initWithEntityName:@"Posts"];
+        coreDataObjectArray = [managedObjectContext executeFetchRequest:request error:&error];
+        //        NSLog(@"Shared Department: %@", coreDataObjectArray);
+        for (NSManagedObject *managedObject in coreDataObjectArray)
+        {
+            [managedObjectContext deleteObject:managedObject];
+        }
+        BOOL saved = [managedObjectContext save:&error];
+        if (!saved) {
+            NSLog(@"Unable to save context after deleting records for class Departments because %@", error);
+            //            return NO;
+        }
+        end = YES;
+    }];
+    return end;
+}
+
+- (void)setValue:(id)value forKey:(NSString *)key forManagedObject:(NSManagedObject *)managedObject {
+   if ([value isKindOfClass:[NSDictionary class]]) {
+       // Not a String
+       if ([key isEqualToString:@"caption"]) {
+           key = @"caption_text";
+           value = [value objectForKey:@"text"];
+           [managedObject setValue:value forKey:key];
+       }else if ([key isEqualToString:@"user"]) {
+           key = @"user_name";
+           value = [value objectForKey:@"full_name"];
+           [managedObject setValue:value forKey:key];
+       }else if ([key isEqualToString:@"images"]) {
+           key = @"large_image_url";
+           value = [[value objectForKey:@"standard_resolution" ] objectForKey:@"url"];
+           [managedObject setValue:value forKey:key];
+       }
+    } else if ([value isKindOfClass:[NSString class]]) {
+        if (value == [NSNull null])
+            value = nil;
+        [managedObject setValue:value forKey:key];
+    }
 }
 
 #pragma mark - Core Data stack
@@ -104,7 +175,7 @@
     if (!coordinator) {
         return nil;
     }
-    _managedObjectContext = [[NSManagedObjectContext alloc] init];
+    _managedObjectContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSPrivateQueueConcurrencyType];
     [_managedObjectContext setPersistentStoreCoordinator:coordinator];
     return _managedObjectContext;
 }
@@ -112,16 +183,14 @@
 #pragma mark - Core Data Saving support
 
 - (void)saveContext {
-    NSManagedObjectContext *managedObjectContext = self.managedObjectContext;
-    if (managedObjectContext != nil) {
+    [self.managedObjectContext performBlockAndWait:^{
         NSError *error = nil;
-        if ([managedObjectContext hasChanges] && ![managedObjectContext save:&error]) {
-            // Replace this implementation with code to handle the error appropriately.
-            // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-            NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
-            abort();
+        BOOL saved = [self.managedObjectContext save:&error];
+        if (!saved) {
+            // do some real error handling
+            NSLog(@"Could not save master context due to %@", error);
         }
-    }
+    }];
 }
 
 @end

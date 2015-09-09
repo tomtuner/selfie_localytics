@@ -7,9 +7,15 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "AppDelegate.h"
+#import "AFSelfieAPIClient.h"
+#import "SelfieTableViewCell.h"
+#import "Posts.h"
 
 @interface ViewController : UIViewController
 
+@property (nonatomic, strong) NSMutableArray* posts;
+@property (nonatomic, strong) IBOutlet UITableView *selfieTable;
 
 @end
 
